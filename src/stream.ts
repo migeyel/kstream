@@ -2,7 +2,7 @@ import * as expect from "cc/expect";
 import { OutboxEntry, OutboxStatus, OutgoingTransaction, State } from "./state";
 import { TransactionSet } from "./transactionSet";
 import { TransactionStream } from "./transactionStream";
-import { InnerHookContext, HookContext } from "./boxView";
+import { InnerHookContext, HookContext } from "./hookContext";
 import { request } from "./http";
 import { ApiAddressResponse, ApiError, ApiSearchResponse, expectOk, parseJson, timeoutOrDeadline } from "./util";
 import { HeldMutex, Mutex } from "./mutex";
