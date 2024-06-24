@@ -9,8 +9,6 @@ import { HeldMutex, Mutex } from "./mutex";
 import { parseApiTx, Transaction } from "./transaction";
 
 const MAX_TX_TIMEOUT = 10;
-const EV_SEND_SUCCESS = "kstream_send_success";
-const EV_SEND_FAILURE = "kstream_send_failure";
 
 /**
  * A disk-backed persistent stream of transactions.
@@ -215,7 +213,6 @@ export class Stream {
                         const inner = new InnerHookContext(this._state, held);
                         assert(table.remove(inner.uncommitted.outbox, 1));
                         this._runHook(onSendSuccess, inner, [tx, id]);
-                        os.queueEvent(EV_SEND_SUCCESS, id);
                         held.unlock();
                     } else {
                         held.unlock();
@@ -228,7 +225,6 @@ export class Stream {
                         const inner = new InnerHookContext(this._state, held);
                         assert(table.remove(inner.uncommitted.outbox, 1));
                         this._runHook(onSendFailure, inner, [tx, id, err!]);
-                        os.queueEvent(EV_SEND_FAILURE, id);
                         held.unlock();
                     } else {
                         held.unlock();
