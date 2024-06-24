@@ -375,7 +375,7 @@ function kstream.Stream:getBalance(address, timeout) end
 ---@param fn fun(ctx: kstream.HookContext) The hook function.
 ---@param timeout number? A timeout to give up waiting for the state mutex.
 ---@return boolean ok true if the hook ran, or false if it timed out waiting.
-function kstream.Stream.begin(fn, timeout) end
+function kstream.Stream:begin(fn, timeout) end
 
 ---Enqueues a transaction for sending.
 ---
@@ -385,7 +385,7 @@ function kstream.Stream.begin(fn, timeout) end
 ---@param tx kstream.OutgoingTransaction The transaction.
 ---@param timeout number? A timeout to give up waiting for the state mutex.
 ---@return string? uuid The local transaction tracker UUID, or nil on timeout.
-function kstream.Stream.send(tx, timeout) end
+function kstream.Stream:send(tx, timeout) end
 
 ---Derives a v2 address from a private key.
 ---@param key string The private key to derive.
