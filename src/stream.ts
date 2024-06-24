@@ -85,24 +85,28 @@ export class Stream {
     public readonly id: string;
 
     /** A hook to run on every new incoming transaction. */
-    public onTransaction?: (this: void, ctx: HookContext, tx: Transaction) => void;
+    public onTransaction: (
+        this: void,
+        ctx: HookContext,
+        tx: Transaction
+    ) => void = () => error("onTransaction hook is undefined");
 
     /** A hook to run on every successful outgoing transaction. */
-    public onSendSuccess?: (
+    public onSendSuccess: (
         this: void,
         ctx: HookContext,
         tx: OutgoingTransaction,
         uuid: string,
-    ) => void;
+    ) => void = () => error("onSendSuccess hook is undefined");
 
     /** A hook to run on every failed outgoing transaction. */
-    public onSendFailure?: (
+    public onSendFailure: (
         this: void,
         ctx: HookContext,
         tx: OutgoingTransaction,
         uuid: string,
         err: SendError,
-    ) => void;
+    ) => void = () => error("onSendFailure hook is undefined");
 
     private constructor(state: State, stream: TransactionStream) {
         this.id = state.state.id;
@@ -207,43 +211,29 @@ export class Stream {
                 const [ok, err] = this._send(held);
                 if (ok) {
                     const onSendSuccess = this.onSendSuccess;
-                    if (onSendSuccess != undefined) {
-                        if (type(onSendSuccess) == "function") {
-                            const inner = new InnerHookContext(this._state, held);
-                            assert(table.remove(inner.uncommitted.outbox, 1));
-                            this._runHook(onSendSuccess, inner, [tx, id]);
-                            os.queueEvent(EV_SEND_SUCCESS, id);
-                            held.unlock();
-                        } else {
-                            held.unlock();
-                            expect.field(this, "onSendSuccess", "function");
-                            throw "unreachable";
-                        }
-                    } else {
-                        assert(table.remove(outbox, 1));
-                        this._state.commit();
+                    if (type(onSendSuccess) == "function") {
+                        const inner = new InnerHookContext(this._state, held);
+                        assert(table.remove(inner.uncommitted.outbox, 1));
+                        this._runHook(onSendSuccess, inner, [tx, id]);
                         os.queueEvent(EV_SEND_SUCCESS, id);
                         held.unlock();
+                    } else {
+                        held.unlock();
+                        expect.field(this, "onSendSuccess", "function");
+                        throw "unreachable";
                     }
                 } else {
                     const onSendFailure = this.onSendFailure;
-                    if (onSendFailure != undefined) {
-                        if (type(onSendFailure) == "function") {
-                            const inner = new InnerHookContext(this._state, held);
-                            assert(table.remove(inner.uncommitted.outbox, 1));
-                            this._runHook(onSendFailure, inner, [tx, id, err!]);
-                            os.queueEvent(EV_SEND_FAILURE, id);
-                            held.unlock();
-                        } else {
-                            held.unlock();
-                            expect.field(this, "onSendFailure", "function");
-                            throw "unreachable";
-                        }
-                    } else {
-                        assert(table.remove(outbox, 1));
-                        this._state.commit();
+                    if (type(onSendFailure) == "function") {
+                        const inner = new InnerHookContext(this._state, held);
+                        assert(table.remove(inner.uncommitted.outbox, 1));
+                        this._runHook(onSendFailure, inner, [tx, id, err!]);
                         os.queueEvent(EV_SEND_FAILURE, id);
                         held.unlock();
+                    } else {
+                        held.unlock();
+                        expect.field(this, "onSendFailure", "function");
+                        throw "unreachable";
                     }
                 }
             } else {
