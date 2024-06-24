@@ -4,8 +4,7 @@ import { hex } from "./util";
 import { Transfer } from "./transaction";
 import { OutgoingTransaction } from "./state";
 
-export { Stream } from "./stream";
-export { ApiError } from "./util";
+export { Stream, SendError } from "./stream";
 
 function addrByte(byte: number) {
     const n = 48 + math.floor(byte / 7);
