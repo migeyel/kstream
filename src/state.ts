@@ -2,12 +2,16 @@ import { HeldMutex, Mutex } from "./mutex";
 import { TransactionPage } from "./transactionPage";
 import { TransactionSet } from "./transactionSet";
 import { ApiTransaction } from "./util";
+import { uuid4 } from "./uuid";
 
 const PATH = "stream.ltn";
 const PATH_MOD = "stream.mod.ltn";
 const PATH_NEW = "stream.new.ltn";
 
 export type StoredState = {
+    /** The stream UUID. */
+    id: string,
+
     /** The Krist endpoint. */
     endpoint: string,
 
@@ -166,6 +170,7 @@ export class State {
         const all = TransactionSet.all();
         const last = TransactionPage.fetch(endpoint, all, 0, 1, false);
         const state = <StoredState>{
+            id: uuid4(),
             endpoint,
             lastPoppedId: last.page[0]?.id || -1,
             includeMined: !!includeMined,

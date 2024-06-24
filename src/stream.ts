@@ -79,6 +79,9 @@ export class Stream {
     /** A mutex for run() to hold. */
     private _routineMutex = new Mutex();
 
+    /** A UUID for identifying the stream. */
+    public readonly id: string;
+
     /** A hook to run on every new incoming transaction. */
     public onTransaction?: (this: void, ctx: HookContext, tx: Transaction) => void;
 
@@ -100,6 +103,7 @@ export class Stream {
     ) => void;
 
     private constructor(state: State, stream: TransactionStream) {
+        this.id = state.state.id;
         this._state = state;
         this._stream = stream;
     }

@@ -289,6 +289,9 @@ function kstream.HookContext:enqueueSend(tx) end
 ---```
 ---@class kstream.Stream
 ---
+---A UUID for identifying the stream.
+---@field id string
+---
 ---A hook to run on every new incoming transaction.
 ---@field onTransaction fun(ctx: kstream.HookContext, tx: kstream.Transaction)?
 ---
