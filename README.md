@@ -68,12 +68,11 @@ function stream.onTransaction(context, transaction)
     local meta = {}
     local userdata = { cookies = 1 }
     local refund = kstream.makeRefund(pkey, address, transaction, meta, userdata)
-    local txUuid
     if refund then
         -- enqueueSend only sends out transactions when the hook commits.
         -- Since hooks only run again if they didn't commit, this transaction will get
         -- sent exactly once.
-        txUuid = context:enqueueSend(refund)
+        context:enqueueSend(refund)
     end
 end
 
@@ -91,7 +90,7 @@ function stream.onSendSuccess(context, transaction, uuid)
         if userdata and userdata.cookies == 1 then
             print("Dispensing cookie")
             turtle.select(1)
-            turtle.drop()
+            turtle.drop(1)
         end
     end
 end
@@ -103,5 +102,8 @@ function stream.onSendFailure(context, transaction, uuid, error)
     print("Failed to send", transaction.amount, "KST to", transaction.to)
 end
 
-stream:run()
+-- Run and call close on error so the websocket doesn't linger.
+local ok, err = pcall(function() stream:run() end)
+stream:close()
+assert(ok, err)
 ```
