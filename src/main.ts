@@ -4,7 +4,8 @@ import { hex } from "./util";
 import { Transfer } from "./transaction";
 import { OutgoingTransaction } from "./state";
 
-export { Stream, Result } from "./stream";
+export { Stream } from "./stream";
+export { ApiError } from "./util";
 
 function addrByte(byte: number) {
     const n = 48 + math.floor(byte / 7);
@@ -62,7 +63,7 @@ export function makev2address(this: void, key: string, prefix = "k"): string {
  * @param ud Extra optional user data.
  * @returns The refund pending transfer to set, or nil when unsafe to do so.
  */
-export function makeRefundFor(
+export function makeRefund(
     this: void,
     privateKey: string,
     address: string,

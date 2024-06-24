@@ -1,4 +1,4 @@
-import { Mutex } from "./mutex";
+import { HeldMutex, Mutex } from "./mutex";
 import { TransactionPage } from "./transactionPage";
 import { TransactionSet } from "./transactionSet";
 import { ApiTransaction } from "./util";
@@ -51,37 +51,59 @@ export enum OutboxStatus {
 
     /** We don't know whether the transaction has been sent or not. */
     UNKNOWN = "unknown",
+
+    /** The transaction has definitely been sent. */
+    SENT = "sent",
 }
+
+export type OutboxEntry = {
+    /** The transaction status. */
+    status: OutboxStatus,
+
+    /** The outgoing transaction. */
+    transaction: OutgoingTransaction,
+
+    /** An UUID to report back to the user. */
+    id: string,
+
+    /** An UUID for tracking completion. */
+    ref: string,
+};
 
 export type Boxes = {
     /** A number for tracking distributed commits. */
     revision: number,
 
-    /** A box for incoming transactions. */
+    /** Incoming transaction. */
     inbox?: ApiTransaction,
 
-    /** A box for outgoing transactions. */
-    outbox?: {
-        /** The transaction status. */
-        status: OutboxStatus,
-
-        /** The outgoing transaction. */
-        transaction: OutgoingTransaction,
-
-        /** An UUID for tracking completion. */
-        ref: string,
-    }
+    /** Outgoing transactions. */
+    outbox: OutboxEntry[],
 };
 
 /** Manages reading and writing the internal state of the program. */
 export class State {
     private _dir: string;
     public state: StoredState;
-    public mutex = new Mutex();
+    private _mutex = new Mutex();
 
     private constructor(dir: string, state: StoredState) {
         this._dir = dir;
         this.state = state;
+    }
+
+    /** Acquires the mutex and checks for inconsistent prepared state. */
+    public lock(): HeldMutex {
+        const held = this._mutex.lock();
+        if (this.state.prepared) { error("stream has prepared state"); }
+        return held;
+    }
+
+    public tryLock(timeout?: number): HeldMutex | undefined {
+        const held = this._mutex.tryLock(timeout);
+        if (!held) { return; }
+        if (this.state.prepared) { error("stream has prepared state"); }
+        return held;
     }
 
     /** Opens the state at a given directory. */
@@ -146,7 +168,7 @@ export class State {
             lastPoppedId: last.page[0]?.id || -1,
             includeMined: !!includeMined,
             address,
-            committed: { revision: 0, },
+            committed: { revision: 0, outbox: [] },
         };
 
         const [fOpt, err] = fs.open(pathNew, "wb");

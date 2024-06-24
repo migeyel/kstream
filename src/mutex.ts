@@ -20,10 +20,10 @@ export class Mutex {
         return this.held;
     }
 
-    public tryLock(deadline?: number): HeldMutex | undefined {
-        if (!deadline) { return this.lock(); }
+    public tryLock(timeout?: number): HeldMutex | undefined {
+        if (!timeout) { return this.lock(); }
 
-        const timer = os.startTimer(deadline - os.clock());
+        const timer = os.startTimer(timeout);
         while (this.held) {
             const [event, p1] = os.pullEvent();
             if (event == "timer" && p1 == timer) { return; }

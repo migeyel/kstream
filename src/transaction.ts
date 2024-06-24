@@ -1,5 +1,6 @@
 import { ApiTransaction, parseTime } from "./util";
 
+/** A Krist transacton, one of several types. */
 export type Transaction = {
     /** The ID of this transaction. */
     id: number,

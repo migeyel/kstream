@@ -1,0 +1,405 @@
+---@meta kstream
+
+local kstream = {}
+
+---An outgoing transaction.
+---@class kstream.OutgoingTransaction
+--
+---The transaction amount.
+---@field amount number
+---
+---The transaction receiver.
+---@field to string
+---
+---The sender's private key.
+---@field privateKey string
+---
+---Transaction CommonMeta key-value pairs.
+---@field meta table<string, string>
+---
+---Custom user data.
+---@field ud any
+
+---An error from an outgoing transaction failure.
+---@class kstream.SendError
+---
+---An error code.
+---@field error string
+---
+---A human-readable message explaining the error.
+---@field message string?
+
+---@class kstream.BaseTransaction
+---
+---The ID of this transaction.
+---@field id number
+---
+---The time this transaction this was made, as an ISO-8601 string.
+---@field time string
+---
+----The time this transaction was made, as the number of non-leap seconds since
+---January 1, 1970 00:00:00 UTC
+---@field timestamp number
+
+---A transfer of currency from one addresses to another.
+---@class kstream.Transfer: kstream.BaseTransaction
+---
+---@field type "transfer"
+---
+---The sender of this transfer.
+---@field from string
+---
+---The recipient of this transfer.
+---@field to string
+---
+---The amount transferred.
+---@field value number
+---
+---Raw transaction metadata, or nil.
+---@field metadata string?
+---
+---The name this transaction was sent to, without suffix, if it was sent to a name.
+---
+---Older software may send transfers by specifying the destination on the metadata
+---instead of the receiver's address field. These transfers will *not* set this
+---field.
+---@field sent_name string?
+---
+---The metaname (part before the `"@"`) of the recipient of this transaction, if it
+---was sent to a name.
+---
+---See the `sent_name` field for compatibility remarks.
+---@field sent_metaname string?
+---
+---The CommonMeta key-value records specified in transaction metadata. These include
+---only records of the form `"key=value"`.
+---
+---Parsing specifics:
+---- Parsing `"a=b=c"` yields `{["a"] = "b=c"}`.
+---- Parsing `"a=b;a=c"` yields `{["a"] = "c"}` and always chooses the last record.
+---- Parsing `"="` yields `{[""] = ""}`.
+---- Parsing `"a;b=c;d"` yields `{["b"] = "c"}`.
+---- Parsing `"Powered by = Kristify"` yields `{["Powered by "] = " Kristify"}`
+---@field kv table<string, string>
+
+---A mining reward issued to an address.
+---@class kstream.MiningReward: kstream.BaseTransaction
+---
+---@field type "mined"
+---
+---The recipient of the mining reward.
+---@field to string
+---
+---The amount rewarded.
+---@field value number
+
+---The purchase of a name by an address.
+---@class kstream.NamePurchase: kstream.BaseTransaction
+---
+---@field type "name_purchase"
+---
+---The buyer of the name.
+---@field from string
+---
+---The name that has been purchased, without suffix.
+---@field name string
+---
+---The price that has been paid for the name.
+---@field value number
+
+---The transfer of a name from one address to another.
+---@class kstream.NameTransfer: kstream.BaseTransaction
+---
+---@field type "name_transfer"
+---
+---The previous owner of the name.
+---@field from string
+---
+---The new owner of the name.
+---@field to string
+---
+---The transferred name.
+---@field name string
+
+---The change of a name's associated A record to another value.
+---@class kstream.NameRecordChange: kstream.BaseTransaction
+---
+---@field type "name_a_record"
+---
+---The name which associated A record has been changed.
+---@field name string
+---
+---The A record's new contents, or nil if the record has been cleared.
+---@field metadata string?
+
+---A Krist transacton, one of several types.
+---@alias kstream.Transaction kstream.Transfer | kstream.MiningReward | kstream.NamePurchase | kstream.NameTransfer | kstream.NameRecordChange
+
+---Methods and fields usable by a hook to manipulate stream state.
+---@class kstream.HookContext
+---
+---Sets a callback to run after the hook prepares to commit, but before it commits.
+---
+---Together with Stream.open(), this can be used to atomically commit a hook
+---together with an external state. Between a hook prepare and a hook commit, both
+---revision values (the previous and the current) will open into their appropriate
+---states.
+---
+---If onPrepare errors, the entire stream is rendered unusable and must be
+---reopened. Thus, it is recommended to not catch any errors thrown by onPrepare
+---and instead restart the entire program to reload the correct revision from the
+---external state.
+---
+---```lua
+---local myState = readMyState()
+---myState.credits = myState.credits or 5
+---
+----- myState.revision contains the revision sent to us on onPrepare, or nil if
+----- onPrepare wasn't called yet.
+---local revision = myState.revision
+---local stream = kstream.Stream.open("/stream", revision)
+---
+---parallel.waitForAll(
+---    function() stream:run() end,
+---    function()
+---        while myState.credits > 0 do
+---            local txid = nil
+---            stream:begin(function(ctx)
+---                myState.credits = myState.credits - 1
+---
+---                -- enqueueSend puts a transaction out, but we want that to happen
+---                -- together with our credit deduction, so the receiver doesn't
+---                -- get free Krist.
+---                txid = ctx:enqueueSend({
+---                    to = "kpg2310002",
+---                    amount = 1,
+---                    meta = {
+---                        message = "Here are your credits!",
+---                    },
+---                })
+---
+---                -- This is where onPrepare comes in.
+---                -- - If we call open() with the previous revision, it will load
+---                --   the previous state (no enqueued transaction).
+---                -- - If we call open() with the new revision, it will load the
+---                --   new state (enqueued transaction).
+---                -- Since we write both the deduction and the new revision in a
+---                -- single call, the enqueued transaction will be present iff the
+---                -- deduction happened.
+---                function ctx.onPrepare(revision)
+---                    myState.revision = revision
+---                    writeMyState(myState)
+---                end
+---            end)
+---        end
+---    end
+---)
+---
+---stream:close()
+---```
+---@field onPrepare fun(revision: number)?
+---
+---Sets a callback to run after the hook commits.
+---
+---If afterCommit errors, the error gets bubbled up. However, after a catch or a
+---restart, the stream will not re-run any hooks and instead will carry on to the
+---next hook as if afterCommit never errored.
+---@field afterCommit fun()?
+kstream.HookContext = {}
+
+---Enqueues a transaction to be sent after the hook commits.
+---
+---If the hook errors, the enqueued transaction is dropped and the hook will
+---eventually re-run. As a result, it is safe to enqueue transactions in the main
+---hook body even if they may run several times.
+---
+---```lua
+---local stream = kstream.Stream.open("/stream")
+---local pkey = "changeme"
+---local address = kstream.makev2address(pkey)
+---
+----- Watch for transactions and always refund them.
+---function stream.onTransaction(ctx, tx)
+---    local refund = kstream.makeRefund(pkey, address, tx)
+---    if refund then ctx:enqueueSend(refund) end
+---end
+---
+---stream:run()
+---```
+---
+---@param tx kstream.OutgoingTransaction The transaction.
+---@return string uuid A UUID for tracking the queued transaction with events.
+function kstream.HookContext:enqueueSend(tx) end
+
+---A disk-backed persistent stream of transactions.
+---
+---Streams' states are stored in a directory. You can create a new stream using
+---`create()` and open an existing stream using `open()`.
+---### Stream Hooks
+---Stream interaction is done using stream hooks. For example, you can define the
+---`onTransaction` hook for incoming transactions:
+---
+---```lua
+---local stream = kstream.Stream.open("/stream")
+---function stream.onTransaction(ctx, tx)
+---    if tx.type ~= "transfer" then return end
+---    print("A transfer is happening from", tx.from, "to", tx.to)
+---end
+---```
+---
+---Hooks are reliable in that they will run for every transaction in the same order they
+---were sent. If a transaction was sent with the computer turned off, the stream will
+---backtrack and start calling `onTransaction` from where it left off. You can check for
+---old transactions by comparing `tx.timestamp` against `os.epoch("utc")`.
+---
+---Hooks are always guaranteed to run to completion *at least once*. If a hook errors or
+---the computer gets shut down, it will run again at the next opportuinity it gets. If
+---that is undesirable (say, if you're dropping an item or performing a side-effect for
+---an incoming transaction), then you can instead define the `afterCommit` callback:
+---
+---```lua
+---function stream.onTransaction(ctx, tx)
+---    if tx.type ~= "transfer" then
+---        -- ctx.afterCommit is nil so it doesn't get run here.
+---        return
+---    end
+---
+---    function ctx.afterCommit()
+---        print("A transfer has happened from", tx.from, "to", tx.to)
+---    end
+---end
+---```
+---
+---Unlike `onTransaction`, `afterCommit` is guaranteed to run *at most once*, after the
+---main hook commits. If `afterCommit` errors or the computer gets shut down, it will
+---not run again.
+---
+---Hooks are also equipped with a hook context. The context can be used to send out
+---transactions atomically: either the hook completes and enqueues all its transactions,
+---or it fails and enqueues none of them.
+---
+---For example, the hook below is guaranteed to refund all incoming refundable
+---transactions exactly once, no matter how many times the computer shuts down:
+---
+---```lua
+---function stream.onTransaction(ctx, tx)
+---    local refund = kstream.makeRefund(pkey, address, tx)
+---    if refund then ctx:enqueueSend(refund) end
+---end
+---```
+---@class kstream.Stream
+---
+---A hook to run on every new incoming transaction.
+---@field onTransaction fun(ctx: kstream.HookContext, tx: kstream.Transaction)?
+---
+---A hook to run on every successful outgoing transaction.
+---@field onSendSuccess fun(ctx: kstream.HookContext, tx: kstream.OutgoingTransaction)?
+---
+---A hook to run on every failed outgoing transaction.
+---@field onSendFailure fun(ctx: kstream.HookContext, tx: kstream.OutgoingTransaction, err: kstream.SendError)?;
+kstream.Stream = {}
+
+---Opens a stream from a given directory.
+---
+---```lua
+---if not fs.isDir("/stream") then
+---    kstream.Stream.create("/stream", "https://krist.dev", "kpg2310002")
+---end
+---local stream = kstream.Stream.open("/stream")
+---```
+---
+---@param dir string The directory that the stream is stored at.
+---@param revision number? An optional revision number. See HookContext.onPrepare for more info.
+---@return kstream.Stream stream The stream.
+function kstream.Stream.open(dir, revision) end
+
+---Creates a new stream at a given directory.
+---
+---```lua
+---if not fs.isDir("/stream") then
+---    kstream.Stream.create("/stream", "https://krist.dev", "kpg2310002")
+---end
+---```
+---
+---@param dir string The directory to store the stream at.
+---@param endpoint string The Krist node URL to use for this stream.
+---@param address string? The address to fetch transactions for, or all addresses if nil.
+---@param includeMined boolean? Whether to include mining reward transactions.
+function kstream.Stream.create(dir, endpoint, address, includeMined) end
+
+---Closes open Krist sockets to prevent them from lingering after the stream.
+---
+---You are encorauged to call this method when cleaning up a program, preferably
+---after catching any errors, and outside of any parallel API calls.
+function kstream.Stream:close() end
+
+---Runs the stream's background routines.
+function kstream.Stream:run() end
+
+---Checks if the node is up.
+---
+---This method sends no new requests. Checks are made through the socket and return
+---false in around 30 seconds after the node is down.
+---
+---@return boolean isUp Whether the node is up since the last check.
+function kstream.Stream:isUp() end
+
+---Fetches an account's balance.
+---
+---This method returns nil if the account doesn't exist, the timeout value is
+---reached, or another error is encountered.
+---
+---@param address string The address to look up.
+---@param timeout number? A timeout to give up looking.
+---@return number? balance The balance, or nil on failure.
+function kstream.Stream:getBalance(address, timeout) end
+
+---Executes an anonymous hook.
+---
+---This method yields to acquire the state mutex before running the hook. If the
+---Krist node is unresponsive, it may never run. A timeout is available to avoid
+---waiting forever.
+---
+---```lua
+---stream:begin(function(ctx)
+---    ctx:enqueueSend({
+---        to = "pg231@switchcraft.kst",
+---        amount = 20,
+---        meta = {
+---            message = "hello",
+---        },
+---    })
+---end)
+---```
+---
+---@param fn fun(ctx: kstream.HookContext) The hook function.
+---@param timeout number? A timeout to give up waiting for the state mutex.
+---@return boolean ok true if the hook ran, or false if it timed out waiting.
+function kstream.Stream.begin(fn, timeout) end
+
+---Enqueues a transaction for sending.
+---
+---This method is an alias for begin() with a hook that just enqueues the
+---transaction.
+---
+---@param tx kstream.OutgoingTransaction The transaction.
+---@param timeout number? A timeout to give up waiting for the state mutex.
+---@return string? uuid The local transaction tracker UUID, or nil on timeout.
+function kstream.Stream.send(tx, timeout) end
+
+---Derives a v2 address from a private key.
+---@param key string The private key to derive.
+---@param prefix string? An optional address prefix, defaults to `"k"`.
+---@return string address The address.
+function kstream.makev2address(key, prefix) end
+
+---Makes a refund for a transfer.
+---@param privateKey string The private key of the receiver.
+---@param address string The address of the matching private key, for efficiency.
+---@param transfer kstream.Transfer The incoming transfer.
+---@param meta table<string, string> Extra metadata to append.
+---@param ud any Extra optional user data.
+---@return kstream.OutgoingTransaction? out The refund outgoing transfer to set, or nil when unsafe to do so.
+function kstream.makeRefund(privateKey, address, transfer, meta, ud) end
+
+return kstream
