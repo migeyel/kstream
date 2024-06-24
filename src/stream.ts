@@ -87,6 +87,7 @@ export class Stream {
         this: void,
         ctx: HookContext,
         tx: OutgoingTransaction,
+        uuid: string,
     ) => void;
 
     /** A hook to run on every failed outgoing transaction. */
@@ -94,6 +95,7 @@ export class Stream {
         this: void,
         ctx: HookContext,
         tx: OutgoingTransaction,
+        uuid: string,
         err: SendError,
     ) => void;
 
@@ -203,7 +205,7 @@ export class Stream {
                         if (type(onSendSuccess) == "function") {
                             const inner = new InnerHookContext(this._state, held);
                             assert(table.remove(inner.uncommitted.outbox, 1));
-                            this._runHook(onSendSuccess, inner, [tx]);
+                            this._runHook(onSendSuccess, inner, [tx, id]);
                             held.unlock();
                         } else {
                             held.unlock();
@@ -221,7 +223,7 @@ export class Stream {
                         if (type(onSendFailure) == "function") {
                             const inner = new InnerHookContext(this._state, held);
                             assert(table.remove(inner.uncommitted.outbox, 1));
-                            this._runHook(onSendFailure, inner, [tx, err!]);
+                            this._runHook(onSendFailure, inner, [tx, id, err!]);
                             held.unlock();
                         } else {
                             held.unlock();

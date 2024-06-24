@@ -293,10 +293,10 @@ function kstream.HookContext:enqueueSend(tx) end
 ---@field onTransaction fun(ctx: kstream.HookContext, tx: kstream.Transaction)?
 ---
 ---A hook to run on every successful outgoing transaction.
----@field onSendSuccess fun(ctx: kstream.HookContext, tx: kstream.OutgoingTransaction)?
+---@field onSendSuccess fun(ctx: kstream.HookContext, tx: kstream.OutgoingTransaction, uuid: string)?
 ---
 ---A hook to run on every failed outgoing transaction.
----@field onSendFailure fun(ctx: kstream.HookContext, tx: kstream.OutgoingTransaction, err: kstream.SendError)?;
+---@field onSendFailure fun(ctx: kstream.HookContext, tx: kstream.OutgoingTransaction, uuid: string, err: kstream.SendError)?;
 kstream.Stream = {}
 
 ---Opens a stream from a given directory.
