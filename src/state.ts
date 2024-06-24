@@ -143,7 +143,9 @@ export class State {
             state.prepared = undefined;
         }
 
-        return new State(dir, state);
+        const out = new State(dir, state);
+        out.commit();
+        return out;
     }
 
     /**
