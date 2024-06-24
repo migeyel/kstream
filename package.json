@@ -1,7 +1,7 @@
 {
-  "name": "cc-tstl-template",
-  "version": "1.109.3",
-  "description": "Template project for ComputerCraft programs written in TypeScript.",
+  "name": "kstream",
+  "version": "0.1.0",
+  "description": "Callback-based node-agnostic Krist API library for CC:Tweaked",
   "main": "main.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -14,6 +14,6 @@
     "@jackmacwindows/craftos-types": "^1.1.1",
     "@jackmacwindows/cc-types": "^1.0.0"
   },
-  "author": "JackMacWindows",
+  "author": "migeyel",
   "license": "MIT"
 }
