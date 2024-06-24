@@ -400,7 +400,7 @@ function kstream.makev2address(key, prefix) end
 ---@param privateKey string The private key of the receiver.
 ---@param address string The address of the matching private key, for efficiency.
 ---@param transfer kstream.Transfer The incoming transfer.
----@param meta table<string, string> Extra metadata to append.
+---@param meta table<string, string>? Extra metadata to append.
 ---@param ud any Extra optional user data.
 ---@return kstream.OutgoingTransaction? out The refund outgoing transfer to set, or nil when unsafe to do so.
 function kstream.makeRefund(privateKey, address, transfer, meta, ud) end
